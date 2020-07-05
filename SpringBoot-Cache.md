@@ -1,7 +1,6 @@
 # Spring Boot Cache
 
 
-
 ## 一、介绍
 
 spring cache 是spring3版本之后引入的一项技术，可以简化对于缓存层的操作，spring cache与springcloud stream类似，都是基于抽象层，可以任意切换其实现。
