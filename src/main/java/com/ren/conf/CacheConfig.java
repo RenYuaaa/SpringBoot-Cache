@@ -1,80 +1,86 @@
 package com.ren.conf;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.cache.interceptor.KeyGenerator;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * @auther renjiahui
- * @date 2020/6/27 20:46
- * @desc springboot-cache的配置
+ * @author : renjiahui
+ * @date : 2020/8/30 12:49
+ * @desc : 该配置文件大部分使用SpringBoot默认配置, 仅加入了有期限缓存的键
  */
+@Configuration
 @EnableCaching
-@SpringBootConfiguration
 public class CacheConfig {
 
     @Autowired
-    private RedisConnectionFactory redisConnectionFactory;
+    ResourceLoader resourceLoader;
 
     @Bean
-    public RedisCacheManager cacheManager() {
-        StringRedisSerializer redisSerializer = new StringRedisSerializer();
-        Jackson2JsonRedisSerializer<Object> jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer<Object>(Object.class);
-
-        ObjectMapper om = new ObjectMapper();
-        // 防止在序列化的过程中丢失对象的属性
-        om.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        // 开启实体类和json的类型转换
-        om.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
-        jackson2JsonRedisSerializer.setObjectMapper(om);
-
-        // 配置序列化（解决乱码的问题）
-        RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
-                // key的序列化方式
-                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(redisSerializer))
-                // value的序列化方式
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jackson2JsonRedisSerializer))
-                // 不缓存空值(但是这里如果不缓存空值可能会引起缓存击穿问题)
-                .disableCachingNullValues()
-                // 10分钟过期
-                .entryTtl(Duration.ofMinutes(10))
-                ;
-        RedisCacheManager cacheManager = RedisCacheManager.builder(redisConnectionFactory)
-                .cacheDefaults(config)
+    public CacheManager cacheManager(RedisConnectionFactory redisConnectionFactory) {
+        return RedisCacheManager.builder(redisConnectionFactory)
+                //默认的缓存配置(没有配置键的key均使用此配置)
+                .cacheDefaults(getDefaultCacheConfiguration())
+                .withInitialCacheConfigurations(getCacheConfigurations())
+                //在spring事务正常提交时才缓存数据
+                .transactionAware()
                 .build();
-        return cacheManager;
+    }
 
+    private Map<String, RedisCacheConfiguration> getCacheConfigurations() {
+        Map<String, RedisCacheConfiguration> configurationMap = new HashMap<>(10);
+
+        //缓存键,自定义过期时间
+        CacheRegister.Ttl.forEach((cacheName, ttl) -> configurationMap.put(cacheName, this.getDefaultCacheConfiguration(Duration.ofSeconds(ttl))));
+
+        return configurationMap;
+    }
+
+
+    /**
+     * 获取redis的缓存配置(针对于键)
+     *
+     * @param ttl 键过期时间
+     * @return
+     */
+    private RedisCacheConfiguration getDefaultCacheConfiguration(Duration ttl) {
+        // 获取Redis缓存配置,此处获取的为默认配置
+        // 设置键过期的时间,用 java.time 下的Duration表示持续时间,进入entryTtl()方法的源码中可看到
+        // 当设置为 0 即 Duration.ZERO 时表示键无过期时间,其也是默认配置
+        return RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(ttl)
+                .serializeKeysWith(RedisSerializationContext
+                        .SerializationPair
+                        .fromSerializer(new StringRedisSerializer()));
     }
 
     /**
-     * 自定义key的生成策略
-     * 如果配置了keyGenerator。在进行缓存的时候，如果没有指定key，则会使用keyGenerator；如果指定了key，则优先使用key
+     * 获取Redis缓存配置,此处获取的为默认配置
+     * 如对键值序列化方式,是否缓存null值,是否使用前缀等有特殊要求
+     * 可另行调用 RedisCacheConfiguration 的构造方法
+     *
      * @return
      */
-    @Bean
-    public KeyGenerator keyGenerator() {
-        return (target, method, params) -> {
-            StringBuffer key = new StringBuffer();
-            key.append(target.getClass().getSimpleName() + "#" + method.getName() + "(");
-            for (Object args : params) {
-                key.append(args + ",");
-            }
-            key.deleteCharAt(key.length() - 1);
-            key.append(")");
-            return key.toString();
-        };
+    private RedisCacheConfiguration getDefaultCacheConfiguration() {
+        // 注意此构造函数为 spring-data-redis-2.1.9 及以上拥有,经试验 已知spring-data-redis-2.0.9及以下版本没有此构造函数
+        // 但观察源码可得核心不过是在值序列化器(valueSerializationPair)的构造中注入 ClassLoader 即可
+        return RedisCacheConfiguration.defaultCacheConfig()
+                .serializeValuesWith(RedisSerializationContext
+                        .SerializationPair
+                        .fromSerializer(new GenericJackson2JsonRedisSerializer()));
     }
+
 }

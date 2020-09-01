@@ -21,7 +21,7 @@ import javax.annotation.Resource;
  */
 @Slf4j
 @RestController
-@CacheConfig(cacheManager = "cacheManager", cacheNames = "course", keyGenerator = "keyGenerator")
+@CacheConfig(cacheManager = "cacheManager", cacheNames = "course")
 public class CourseController {
 
     @Resource
@@ -37,9 +37,9 @@ public class CourseController {
      * @param id 课程id
      * @return 课程信息
      */
-    @Cacheable(key = "#id", unless = "#result = null")
     @ApiOperation(value = "获取课程信息")
     @GetMapping("/api/course/getCourseInfo/{id}")
+    @Cacheable(cacheNames = "course:info", keyGenerator = "myKeyGenerator", unless = "#result = null")
     public Course getCourseInfo(@PathVariable Integer id) {
         log.info("==========请求进来了==========");
         return courseService.getCourseInfo(id);
