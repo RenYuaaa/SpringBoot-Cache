@@ -10,7 +10,7 @@ import java.lang.annotation.*;
 @Documented
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Ttl {
+public @interface CacheTTL {
 
     /**
      * SpringBoot-Cache自定义过期时间

@@ -1,7 +1,7 @@
 package com.ren.controller;
 
 import com.ren.beans.Course;
-import com.ren.conf.Ttl;
+import com.ren.conf.CacheTTL;
 import com.ren.service.CourseService;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +41,7 @@ public class CourseController {
     @ApiOperation(value = "获取课程信息")
     @GetMapping("/api/course/getCourseInfo/{id}")
     @Cacheable(cacheNames = "course:info", keyGenerator = "myKeyGenerator", unless = "#result = null")
-    @Ttl(ttl = 1800)
+    @CacheTTL(ttl = 1800)
     public Course getCourseInfo(@PathVariable Integer id) {
         log.info("==========请求进来了==========");
         return courseService.getCourseInfo(id);

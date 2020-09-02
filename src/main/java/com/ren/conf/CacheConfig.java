@@ -43,7 +43,7 @@ public class CacheConfig {
         Map<String, RedisCacheConfiguration> configurationMap = new HashMap<>(16);
 
         //缓存键,自定义过期时间
-        CacheRegister.Ttl.forEach((cacheName, ttl) -> configurationMap.put(cacheName, this.getDefaultCacheConfiguration(Duration.ofSeconds(ttl))));
+        CacheRegister.CACHE_TTL_MAP.forEach((cacheName, ttl) -> configurationMap.put(cacheName, this.getDefaultCacheConfiguration(Duration.ofSeconds(ttl))));
 
         return configurationMap;
     }

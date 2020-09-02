@@ -27,6 +27,7 @@ import org.springframework.util.ClassUtils;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author : renjiahui
@@ -35,12 +36,15 @@ import java.util.*;
  */
 public class CacheRegister implements ImportBeanDefinitionRegistrar, ResourceLoaderAware, BeanClassLoaderAware, EnvironmentAware {
 
-    Logger LOG = LoggerFactory.getLogger(CacheRegister.class);
+    Logger logger = LoggerFactory.getLogger(CacheRegister.class);
 
-    public static Map<String, Integer> Ttl = new HashMap<>();
+    public static Map<String, Integer> CACHE_TTL_MAP = new HashMap<>();
+
     public  void setSectionMap(Map<String, Integer> sectionMap) {
-        Ttl = sectionMap;
+        CACHE_TTL_MAP = sectionMap;
     }
+
+    public static final ResourcePatternResolver RESOLVER = new PathMatchingResourcePatternResolver();
 
     private ResourceLoader resourceLoader;
 
@@ -75,7 +79,7 @@ public class CacheRegister implements ImportBeanDefinitionRegistrar, ResourceLoa
     private void logPackageScan(AnnotationMetadata metadata) {
         Map<String, Object> defaultAttrs = metadata.getAnnotationAttributes(CacheScan.class.getName(), true);
         if (defaultAttrs != null && defaultAttrs.size() > 0) {
-            LOG.info("Cache package scan: " + buildPackages((String[]) defaultAttrs.get("basePackages")));
+            logger.info("Cache package scan: " + buildPackages((String[]) defaultAttrs.get("basePackages")));
         }
     }
 
@@ -95,25 +99,21 @@ public class CacheRegister implements ImportBeanDefinitionRegistrar, ResourceLoa
         ClassPathScanningCandidateComponentProvider scanner = getScanner();
         scanner.setResourceLoader(this.resourceLoader);
         Set<String> basePackages;
-        Map<String, Object> attrs = metadata.getAnnotationAttributes(CacheScan.class.getName());
-        AnnotationTypeFilter annotationTypeFilter = new AnnotationTypeFilter(Ttl.class);
+        AnnotationTypeFilter annotationTypeFilter = new AnnotationTypeFilter(CacheTTL.class);
         scanner.addIncludeFilter(annotationTypeFilter);
         basePackages = getBasePackages(metadata);
 
-        Map<String, Integer> ttlMap = new HashMap<>();
+        ConcurrentHashMap<String, Integer> ttlMap = new ConcurrentHashMap<>(16);
 
         for (String basePackage : basePackages) {
 
-            Set<BeanDefinition> candidates = new LinkedHashSet<BeanDefinition>();
-
-            ResourcePatternResolver resourcePatternResolver = new PathMatchingResourcePatternResolver();
+            Set<BeanDefinition> candidates = new LinkedHashSet<>();
 
             try {
                 // 这里特别注意一下类路径必须这样写
                 // 获取指定包下的所有类
-                basePackage = basePackage.replace(".", "/");
-
-                Resource[] resources = resourcePatternResolver.getResources("classpath*:" + basePackage + "/**/*.class");
+                String path = ClassUtils.convertClassNameToResourcePath(basePackage);
+                Resource[] resources = RESOLVER.getResources(ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX + path + "/**/*.class");
 
                 MetadataReaderFactory metadata1 = new SimpleMetadataReaderFactory();
                 for (Resource resource : resources) {
@@ -128,17 +128,17 @@ public class CacheRegister implements ImportBeanDefinitionRegistrar, ResourceLoa
                     // 扫描Ttl注解和Cacheable注解
                     Method[] methods = Class.forName(classname).getMethods();
                     for (Method method : methods) {
-                        Ttl ttl = method.getAnnotation(Ttl.class);
+                        CacheTTL cacheTTL = method.getAnnotation(CacheTTL.class);
                         Cacheable cacheable = method.getAnnotation(Cacheable.class);
 
-                        if (ttl != null && cacheable != null && cacheable.cacheNames().length > 0) {
-                            ttlMap.put(cacheable.cacheNames()[0], ttl.ttl());
+                        if (cacheTTL != null && cacheable != null && cacheable.cacheNames().length > 0) {
+                            ttlMap.put(cacheable.cacheNames()[0], cacheTTL.ttl());
                         }
                     }
 
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                logger.error("error:" + e);
             }
 
         }
@@ -181,7 +181,8 @@ public class CacheRegister implements ImportBeanDefinitionRegistrar, ResourceLoa
                 .getAnnotationAttributes(CacheScan.class.getCanonicalName());
 
         Set<String> basePackages = new HashSet<String>();
-        for (String pkg : (String[]) attributes.get("basePackages")) {
+        String basePackage = "basePackages";
+        for (String pkg : (String[]) attributes.get(basePackage)) {
             if (pkg != null && !"".equals(pkg)) {
                 basePackages.add(pkg);
             }
