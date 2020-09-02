@@ -41,7 +41,7 @@ public class CacheConfig {
     }
 
     private Map<String, RedisCacheConfiguration> getCacheConfigurations() {
-        Map<String, RedisCacheConfiguration> configurationMap = new HashMap<>(10);
+        Map<String, RedisCacheConfiguration> configurationMap = new HashMap<>(16);
 
         //缓存键,自定义过期时间
         CacheRegister.Ttl.forEach((cacheName, ttl) -> configurationMap.put(cacheName, this.getDefaultCacheConfiguration(Duration.ofSeconds(ttl))));
@@ -62,9 +62,9 @@ public class CacheConfig {
         // 当设置为 0 即 Duration.ZERO 时表示键无过期时间,其也是默认配置
         return RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(ttl)
-                .serializeKeysWith(RedisSerializationContext
+                .serializeValuesWith(RedisSerializationContext
                         .SerializationPair
-                        .fromSerializer(new StringRedisSerializer()));
+                        .fromSerializer(new GenericJackson2JsonRedisSerializer()));
     }
 
     /**

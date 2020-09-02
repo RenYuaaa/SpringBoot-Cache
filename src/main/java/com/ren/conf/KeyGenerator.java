@@ -1,5 +1,6 @@
 package com.ren.conf;
 
+import org.springframework.cache.interceptor.KeyGenerator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -12,7 +13,7 @@ import java.util.Arrays;
  * @desc : 自定义key的生成策略
  */
 @Configuration
-public class KeyGenerator {
+class CacheKeyGenerator {
 
     /**
      * 自定义key的生成策略
@@ -22,9 +23,11 @@ public class KeyGenerator {
      */
     @Bean("myKeyGenerator")
     public KeyGenerator keyGenerator() {
+
         return new KeyGenerator() {
-            public Object genertor(Object o, Method method, Object... params) {
-                return method + "[" + Arrays.asList(params) + "]";
+            @Override
+            public Object generate(Object o, Method method, Object... params) {
+                return method.getName() + "[" + Arrays.asList(params) + "]";
             }
         };
     }

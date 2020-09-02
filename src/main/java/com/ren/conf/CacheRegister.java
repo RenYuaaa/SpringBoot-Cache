@@ -112,7 +112,8 @@ public class CacheRegister implements ImportBeanDefinitionRegistrar, ResourceLoa
                 // 这里特别注意一下类路径必须这样写
                 // 获取指定包下的所有类
                 basePackage = basePackage.replace(".", "/");
-                Resource[] resources = resourcePatternResolver.getResources("classpath*:" + basePackage);
+
+                Resource[] resources = resourcePatternResolver.getResources("classpath*:" + basePackage + "/**/*.class");
 
                 MetadataReaderFactory metadata1 = new SimpleMetadataReaderFactory();
                 for (Resource resource : resources) {
@@ -127,12 +128,11 @@ public class CacheRegister implements ImportBeanDefinitionRegistrar, ResourceLoa
                     // 扫描Ttl注解和Cacheable注解
                     Method[] methods = Class.forName(classname).getMethods();
                     for (Method method : methods) {
-                        Ttl ttl = Class.forName(classname).getAnnotation(Ttl.class);
-                        Cacheable cacheable = Class.forName(classname).getAnnotation(Cacheable.class);
-                        String[] cacheNames = cacheable.cacheNames();
+                        Ttl ttl = method.getAnnotation(Ttl.class);
+                        Cacheable cacheable = method.getAnnotation(Cacheable.class);
 
-                        if (ttl != null && cacheable != null && cacheNames.length > 0) {
-                            ttlMap.put(cacheNames[0], ttl.ttl());
+                        if (ttl != null && cacheable != null && cacheable.cacheNames().length > 0) {
+                            ttlMap.put(cacheable.cacheNames()[0], ttl.ttl());
                         }
                     }
 
